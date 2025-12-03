@@ -1,201 +1,325 @@
-# Upwork Wayland Bridge for GNOME
+# Upwork Wayland Screenshot Bridge
 
-A workaround to run Upwork's time tracking application on GNOME Wayland sessions without X11 support.
+A robust solution to run Upwork's time tracking application on GNOME Wayland sessions without X11 support.
 
-## Problem
+## The Problem
 
-Modern GNOME installations are moving to pure Wayland sessions, with some distributions (like Fedora 43+) completely removing X11 session support. Upwork's desktop application requires X11 for screenshot functionality and will refuse to run on Wayland, displaying an error: "Upwork screenshots are only available on Xorg sessions."
+Modern Linux distributions are transitioning to pure Wayland display servers:
+- **Fedora 43+** has removed X11 session support entirely
+- **Ubuntu 24.04+** defaults to Wayland
+- **Other distributions** are following this trend
 
-## Solution
+Upwork's desktop application requires X11 for screenshot functionality and refuses to run on Wayland, displaying:
+> "Upwork screenshots are only available on Xorg sessions"
 
-This bridge consists of two components:
+## The Solution
 
-1. **screenshot.py** - A D-Bus service that emulates GNOME Shell's screenshot API, using `grim` to capture screenshots on Wayland
-2. **upwork-launcher.sh** - A launcher script that tricks Upwork into thinking it's running on X11 while actually using Wayland
+This bridge provides a D-Bus service that:
+1. **Intercepts** Upwork's screenshot requests via the `org.gnome.Shell.Screenshot` D-Bus interface
+2. **Captures** screenshots using Wayland-compatible tools (Flameshot or gnome-screenshot)
+3. **Tricks** Upwork into thinking it's running on X11 while actually using Wayland
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GNOME Wayland Session                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐     D-Bus      ┌──────────────────────────┐  │
+│  │              │ ──────────────▶│   Screenshot Bridge      │  │
+│  │   Upwork     │                │   (screenshot.py)        │  │
+│  │  (thinks     │                │                          │  │
+│  │  it's X11)   │◀────────────── │  ┌──────────────────┐   │  │
+│  │              │  screenshot    │  │ Flameshot        │   │  │
+│  └──────────────┘    result      │  │ (primary)        │   │  │
+│                                  │  └──────────────────┘   │  │
+│                                  │  ┌──────────────────┐   │  │
+│                                  │  │ gnome-screenshot │   │  │
+│                                  │  │ (fallback)       │   │  │
+│                                  │  └──────────────────┘   │  │
+│                                  └──────────────────────────┘  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Features
+
+- **Flameshot Integration**: Uses Flameshot for high-quality screenshots with area capture support
+- **Automatic Fallback**: Falls back to gnome-screenshot if Flameshot is unavailable
+- **Idle Time Tracking**: Implements `org.gnome.Mutter.IdleMonitor` for activity monitoring
+- **Systemd Integration**: Optional systemd user service for automatic startup
+- **Desktop Entry**: Integrates with your application menu
 
 ## Requirements
 
-- GNOME desktop environment running on Wayland
-- Python 3.5+
+### System Requirements
+- GNOME desktop environment on Wayland
+- Python 3.7+
 - Upwork desktop application
-- Required packages:
-  - `grim` - Wayland screenshot utility
-  - `swayidle` - For activity tracking (optional but recommended)
-  - `dbus-next` - Python D-Bus library
 
-## Compatibility
+### Dependencies
+- **flameshot** - Primary screenshot tool (recommended)
+- **gnome-screenshot** - Fallback screenshot tool (usually pre-installed)
+- **xdg-desktop-portal-gnome** - For screenshot permissions
+- **dbus-next** - Python D-Bus library
 
-Tested and working on:
-- Fedora 43+ (GNOME on Wayland)
-- Ubuntu 24.04+ (GNOME on Wayland)
-- Arch Linux (GNOME on Wayland)
-- Any Linux distribution running GNOME on pure Wayland
+## Quick Start
 
-## Installation
+### 1. Clone and Setup
 
-### 1. Clone the repository
 ```bash
 git clone https://github.com/yourusername/upwork-wayland-bridge.git
 cd upwork-wayland-bridge
+./setup.sh
 ```
 
-### 2. Install dependencies
+### 2. Launch Upwork
 
-**Fedora/RHEL:**
-```bash
-sudo dnf install grim swayidle
-pip3 install --user dbus-next
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install grim swayidle
-pip3 install --user dbus-next
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S grim swayidle
-pip3 install --user dbus-next
-```
-
-### 3. Make scripts executable
-```bash
-chmod +x screenshot.py
-chmod +x upwork-launcher.sh
-```
-
-## Usage
-
-### Quick Start
-
-Simply run the launcher script from the project directory:
 ```bash
 ./upwork-launcher.sh
 ```
 
-The launcher will automatically:
-- Start the screenshot bridge if not already running
-- Launch Upwork with the proper environment variables
-- Enable screenshot functionality
+Or use the "Upwork (Wayland)" entry from your application menu.
 
-### Make it permanent
+## Manual Installation
 
-#### Option 1: Add to PATH
+### Fedora/RHEL
 
-Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
-export PATH="$HOME/path/to/upwork-wayland-bridge:$PATH"
+sudo dnf install flameshot xdg-desktop-portal xdg-desktop-portal-gnome
+pip3 install --user dbus-next
 ```
 
-Then reload your shell:
+### Ubuntu/Debian
+
 ```bash
-source ~/.zshrc  # or source ~/.bashrc
+sudo apt install flameshot xdg-desktop-portal xdg-desktop-portal-gnome
+pip3 install --user dbus-next
 ```
 
-#### Option 2: Create an alias
+### Arch Linux
 
-Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
-alias upwork='~/path/to/upwork-wayland-bridge/upwork-launcher.sh'
+sudo pacman -S flameshot xdg-desktop-portal xdg-desktop-portal-gnome
+pip3 install --user dbus-next
 ```
 
-#### Option 3: Update desktop launcher
+### Make Scripts Executable
+
 ```bash
-# Copy desktop file to local applications
-cp /usr/share/applications/upwork.desktop ~/.local/share/applications/
-
-# Edit the file
-nano ~/.local/share/applications/upwork.desktop
+chmod +x screenshot.py upwork-launcher.sh setup.sh
 ```
 
-Change the `Exec` line to:
-```
-Exec=/home/yourusername/path/to/upwork-wayland-bridge/upwork-launcher.sh %U
+## Usage
+
+### Basic Usage
+
+```bash
+# Launch Upwork (starts bridge automatically)
+./upwork-launcher.sh
+
+# Check status
+./upwork-launcher.sh --status
+
+# Start bridge only (without launching Upwork)
+./upwork-launcher.sh --start-bridge
+
+# Stop bridge
+./upwork-launcher.sh --stop-bridge
+
+# Show help
+./upwork-launcher.sh --help
 ```
 
-## How It Works
+### Debug Mode
 
-1. **screenshot.py** creates a D-Bus service that implements the `org.gnome.Shell.Screenshot` interface
-2. When Upwork requests a screenshot via D-Bus, the bridge uses `grim` to capture the screen
-3. **upwork-launcher.sh** sets environment variables (`XDG_SESSION_TYPE=x11`) to make Upwork believe it's running on X11
-4. Upwork operates normally, taking screenshots through the bridge without knowing it's actually on Wayland
+```bash
+# Run with debug output
+./upwork-launcher.sh --debug
+
+# View bridge logs
+tail -f /tmp/upwork-bridge.log
+```
+
+### Systemd Service (Optional)
+
+For automatic startup with your GNOME session:
+
+```bash
+# Enable the service
+systemctl --user enable upwork-screenshot-bridge
+
+# Start the service
+systemctl --user start upwork-screenshot-bridge
+
+# Check status
+systemctl --user status upwork-screenshot-bridge
+```
+
+## Configuration
+
+### Flameshot Permissions
+
+On first run, Flameshot may ask for screenshot permission. Grant it to enable silent screenshots.
+
+If you accidentally denied permission, reset it:
+
+```bash
+# Reset screenshot permissions
+dbus-send --session --print-reply=literal \
+    --dest=org.freedesktop.impl.portal.PermissionStore \
+    /org/freedesktop/impl/portal/PermissionStore \
+    org.freedesktop.impl.portal.PermissionStore.DeletePermission \
+    string:'screenshot' string:'screenshot' string:''
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPWORK_BRIDGE_DEBUG` | Enable debug logging (0/1) | `1` |
 
 ## Troubleshooting
 
-### Screenshots not working
+### Screenshots Not Working
 
-Check if the bridge is running:
+1. **Check if bridge is running:**
+   ```bash
+   ./upwork-launcher.sh --status
+   ```
+
+2. **Test screenshot functionality:**
+   ```bash
+   flameshot full --path /tmp/test.png
+   # or
+   gnome-screenshot -f /tmp/test.png
+   ```
+
+3. **Check bridge logs:**
+   ```bash
+   cat /tmp/upwork-bridge.log
+   ```
+
+4. **Verify Wayland session:**
+   ```bash
+   echo $XDG_SESSION_TYPE
+   # Should output: wayland
+   ```
+
+### Upwork Still Complains About Xorg
+
+Make sure you're launching Upwork via the launcher script:
 ```bash
-pgrep -af screenshot.py
+./upwork-launcher.sh
 ```
 
-Check for errors:
+**Not** directly via `/opt/Upwork/upwork`.
+
+### Permission Denied Errors
+
+Reset Flameshot permissions using the setup script:
 ```bash
-python3 screenshot.py
-# Look for error messages in the output
+./setup.sh
+# Select option 3 (Configure permissions only)
 ```
 
-### Upwork still complains about Xorg
+### Bridge Fails to Start
 
-Make sure you're launching Upwork via the launcher script, not directly. The environment variables must be set.
+1. Check Python dependencies:
+   ```bash
+   python3 -c "import dbus_next; print('OK')"
+   ```
 
-### Bridge fails to start
+2. Check if another service owns the D-Bus name:
+   ```bash
+   dbus-send --session --print-reply \
+       --dest=org.freedesktop.DBus \
+       /org/freedesktop/DBus \
+       org.freedesktop.DBus.GetNameOwner \
+       string:org.gnome.Shell.Screenshot
+   ```
 
-Ensure `grim` is installed and working:
-```bash
-grim /tmp/test.png
-# Check if the screenshot was created
-ls -lh /tmp/test.png
-```
+## How It Works
 
-### Verify you're running Wayland
+### D-Bus Interface Emulation
 
-Check your current session type:
-```bash
-echo $XDG_SESSION_TYPE
-# Should output: wayland
-```
+The bridge implements the `org.gnome.Shell.Screenshot` D-Bus interface:
 
-If you're already on X11, this bridge is not needed.
+| Method | Description |
+|--------|-------------|
+| `Screenshot()` | Captures full screen |
+| `ScreenshotWindow()` | Captures focused window (falls back to full screen on Wayland) |
+| `ScreenshotArea()` | Captures specific region |
+| `FlashArea()` | Flashes area (no-op) |
+| `SelectArea()` | Interactive area selection (returns default) |
+
+### Screenshot Backends
+
+1. **Flameshot** (Primary)
+   - Full-featured screenshot tool
+   - Supports area capture via `--region` flag
+   - Works on GNOME Wayland with xdg-desktop-portal
+
+2. **gnome-screenshot** (Fallback)
+   - Native GNOME tool
+   - Always available on GNOME systems
+   - Limited to full-screen capture in non-interactive mode
+
+### Idle Time Monitoring
+
+The bridge also implements `org.gnome.Mutter.IdleMonitor`:
+- Tracks user activity for Upwork's time tracking
+- Connects to real GNOME IdleMonitor when available
+- Falls back to internal tracking otherwise
 
 ## Limitations
 
-- Window-specific screenshots fall back to full screen capture (Wayland security restriction)
-- Designed specifically for GNOME on Wayland; other Wayland compositors (Sway, KDE) may require adjustments
-- Idle time tracking requires `swayidle`
+- **Window-specific screenshots** fall back to full screen (Wayland security restriction)
+- **GNOME-specific** - Other Wayland compositors (KDE, Sway) may need modifications
+- **First-time permission** may be required for Flameshot
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `screenshot.py` | D-Bus bridge service |
+| `upwork-launcher.sh` | Launcher script |
+| `setup.sh` | Interactive setup script |
+| `README.md` | This documentation |
+| `LICENSE` | MIT License |
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests, especially for:
+Contributions welcome! Areas of interest:
 - Testing on different distributions
-- Improvements to window capture functionality
-- Support for other Wayland compositors
+- KDE Plasma Wayland support
+- Improved window capture
 
 ## License
 
-MIT License - Feel free to use and modify as needed.
+MIT License - See [LICENSE](LICENSE) for details.
 
 ## Credits
 
-Original bridge script concept adapted from various Wayland screenshot bridge implementations. Updated and tested for modern GNOME Wayland sessions.
+- Inspired by various Wayland screenshot bridge implementations
+- Uses [python-dbus-next](https://github.com/altdesktop/python-dbus-next) for D-Bus communication
+- Flameshot for screenshot functionality
 
 ## Disclaimer
 
-This is an unofficial workaround. Use at your own risk. Always ensure you comply with Upwork's terms of service.
+This is an unofficial workaround. Use at your own risk. Ensure compliance with Upwork's Terms of Service.
 
 ---
 
-### FAQ
+## Research Sources
 
-**Q: Will this work on KDE Plasma Wayland?**  
-A: This is designed for GNOME. KDE uses different D-Bus interfaces, so modifications would be needed.
+This solution was developed after extensive research:
 
-**Q: Is this safe to use?**  
-A: Yes, it only provides a screenshot interface. It doesn't modify Upwork or bypass any security features.
-
-**Q: Can I use this with other applications that require X11 screenshots?**  
-A: Potentially yes, if they use the same GNOME Shell screenshot D-Bus interface.
-
-**Q: Do I need to run this every time I start my computer?**  
-A: If you set it up via the desktop launcher (Option 3), it will start automatically when you launch Upwork from your application menu.
+- [Upwork Support - Troubleshoot desktop app (Linux)](https://support.upwork.com/hc/en-us/articles/211064108-Troubleshoot-desktop-app-Linux)
+- [TecAdmin - Upwork Screenshots not supported on Wayland](https://tecadmin.net/upwork-screenshots-are-not-supported-on-wayland-please-switch-to-xorg/)
+- [Flameshot - Wayland Help](https://flameshot.org/docs/guide/wayland-help/)
+- [GNOME Shell Screenshot D-Bus Interface](https://github.com/vinzenz/gnome-shell/blob/master/data/org.gnome.Shell.Screenshot.xml)
+- [XDG Desktop Portal - Screenshot](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Screenshot.html)
+- [ArchWiki - XDG Desktop Portal](https://wiki.archlinux.org/title/XDG_Desktop_Portal)
+- [python-dbus-next Documentation](https://github.com/altdesktop/python-dbus-next)
