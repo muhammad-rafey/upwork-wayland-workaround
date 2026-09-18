@@ -59,7 +59,7 @@ class ScreenshotInterface(ServiceInterface):
 class IdleMonitor(ServiceInterface):
     def __init__(self):
         super().__init__('org.gnome.Mutter.IdleMonitor')
-        self.last_active = dt.datetime.utcnow()
+        self.last_active = dt.datetime.now(dt.timezone.utc)
         self.monitor = None
         self.worker = None
 
@@ -82,13 +82,13 @@ class IdleMonitor(ServiceInterface):
             async for line in self.monitor.stdout:
                 line = line.decode().strip()
                 if line == 'resume':
-                    self.last_active = dt.datetime.utcnow()
+                    self.last_active = dt.datetime.now(dt.timezone.utc)
         except Exception as e:
             debug('swayidle error:', e)
 
     @method()
     def GetIdletime(self) -> 't':
-        delta = dt.datetime.utcnow() - self.last_active
+        delta = dt.datetime.now(dt.timezone.utc) - self.last_active
         return round(delta.total_seconds() * 1000)
 
     async def cleanup(self):
@@ -96,7 +96,7 @@ class IdleMonitor(ServiceInterface):
             self.monitor.terminate()
             try:
                 await asyncio.wait_for(self.monitor.wait(), timeout=2)
-            except asyncio.TimeoutExpired:
+            except asyncio.TimeoutError:
                 self.monitor.kill()
 
 
@@ -128,10 +128,7 @@ async def main():
     debug('Bridge ready!')
 
     try:
-        if idle.worker:
-            await idle.worker
-        else:
-            await asyncio.get_event_loop().create_future()
+        await bus.wait_for_disconnect()
     finally:
         await idle.cleanup()
 

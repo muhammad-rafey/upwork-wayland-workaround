@@ -5,9 +5,10 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Start the bridge in background if not already running
-if ! pgrep -f "screenshot.py" > /dev/null; then
+if ! pgrep -f "python3 .*screenshot\.py" > /dev/null 2>&1; then
     echo "Starting screenshot bridge..." >&2
     python3 "$SCRIPT_DIR/screenshot.py" &
+    disown
     sleep 2
 fi
 
@@ -17,9 +18,9 @@ unset WAYLAND_DISPLAY
 
 # Find and launch Upwork
 if [ -x /opt/Upwork/upwork ]; then
-    /opt/Upwork/upwork "$@"
+    exec /opt/Upwork/upwork "$@"
 elif [ -x /usr/bin/upwork ]; then
-    /usr/bin/upwork "$@"
+    exec /usr/bin/upwork "$@"
 else
     echo "Error: Upwork not found in /opt/Upwork/ or /usr/bin/" >&2
     exit 1

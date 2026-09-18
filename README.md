@@ -100,18 +100,16 @@ Add to your `~/.zshrc` or `~/.bashrc`:
 alias upwork='~/path/to/upwork-wayland-bridge/upwork-launcher.sh'
 ```
 
-#### Option 3: Update desktop launcher
+#### Option 3: Install desktop launcher
 ```bash
-# Copy desktop file to local applications
-cp /usr/share/applications/upwork.desktop ~/.local/share/applications/
-
-# Edit the file
-nano ~/.local/share/applications/upwork.desktop
+./install.sh
 ```
 
-Change the `Exec` line to:
-```
-Exec=/home/yourusername/path/to/upwork-wayland-bridge/upwork-launcher.sh %U
+This generates a clean desktop file at `~/.local/share/applications/upwork.desktop` pointing to the launcher, preserves the Upwork icon, and updates the desktop database. You can then launch Upwork from your application menu.
+
+To uninstall the launcher:
+```bash
+rm ~/.local/share/applications/upwork.desktop
 ```
 
 ## How It Works
